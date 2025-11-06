@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pro Stopwatch — Tabs, Laps CRUD, Persistent</title>
+    <style>
+      :root {
+        --bg: #0e0f13;
+        --bg-2: #161821;
+        --panel: #0f1117;
+        --text: #e6e7eb;
+        --muted: #9aa3b2;
+        --accent: #4da3ff;
+        --danger: #ff5f73;
+        --warning: #ffc14d;
+        --ok: #6ee16e;
+        --tab: #1a1d27;
+        --tab-active: #222634;
+        --border: #272b3a;
+        --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        --control-h: 44px;
+        --chip: #2a2f40;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f7fb;
+          --bg-2: #ffffff;
+          --panel: #ffffff;
+          --text: #121318;
+          --muted: #5a6270;
+          --accent: #1f6fff;
+          --danger: #df2c45;
+          --warning: #cc8a00;
+          --ok: #13a113;
+          --tab: #e8ebf4;
+          --tab-active: #dfe3ef;
+          --border: #d6d9e3;
+          --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+          --chip: #eef1fb;
+        }
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, var(--bg), var(--bg-2));
+        color: var(--text);
+        font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas,
+          "Roboto Mono", monospace;
+      }
+      .app {
+        width: 1400px;
+        margin: 24px auto;
+        padding: 0 16px 48px;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .brand {
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        color: var(--muted);
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        overflow: auto;
+        padding: 8px;
+        border-radius: 10px;
+        background: var(--tab);
+        box-shadow: var(--shadow) inset;
+      }
+      .tab {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--tab);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        user-select: none;
+        min-width: 200px;
+        max-width: 260px;
+        transition: 0.15s ease;
+      }
+      .tab:hover {
+        transform: translateY(-1px);
+      }
+      .tab.active {
+        background: var(--tab-active);
+        border-color: var(--accent);
+      }
+      .tab .title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--text);
+        font-weight: 600;
+      }
+      .tab .mini {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tab .x {
+        margin-left: auto;
+        color: var(--muted);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      .add-tab {
+        border: 1px dashed var(--border);
+        background: #1a1d27;
+        color: var(--accent);
+        padding: 10px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 700;
+        position: sticky;
+        right: 0;
+        z-index: 1;
+      }
+      main {
+        margin-top: 16px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .grow {
+        flex: 1 1 420px;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .btn {
+        border: 1px solid var(--border);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.04),
+          rgba(255, 255, 255, 0)
+        );
+        padding: 0 14px;
+        border-radius: 10px;
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 700;
+        transition: 0.15s ease;
+        box-shadow: var(--shadow);
+        height: var(--control-h);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+      .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .primary {
+        border-color: var(--accent);
+        color: #fff;
+        background: linear-gradient(180deg, var(--accent), #306de0);
+      }
+      .danger {
+        border-color: var(--danger);
+        background: linear-gradient(180deg, var(--danger), #cc3b51);
+      }
+      .ghost {
+        background: transparent;
+      }
+      .ok {
+        background: linear-gradient(180deg, var(--ok), #2da62d);
+        border-color: transparent;
+        color: #fff;
+      }
+      .warn {
+        background: linear-gradient(180deg, var(--warning), #b67b00);
+        border-color: transparent;
+        color: #1a1406;
+      }
+      .name-edit {
+        width: 100%;
+        padding: 0 12px;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+        font-weight: 600;
+        height: var(--control-h);
+      }
+
+      /* Digital display */
+      .digits {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(120px, 1fr));
+        gap: 12px;
+        align-items: stretch;
+      }
+      @media (max-width: 900px) {
+        .digits {
+          grid-template-columns: repeat(2, minmax(160px, 1fr));
+        }
+      }
+      @media (max-width: 520px) {
+        .digits {
+          grid-template-columns: 1fr;
+        }
+      }
+      .digit {
+        background: radial-gradient(120% 120% at 30% 20%, #202538, #0b0d13);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+      }
+      .digit .unit {
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .digit .val {
+        margin-top: 4px;
+        font-size: 32px;
+        line-height: 1.1;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-shadow: 0 0 18px rgba(77, 163, 255, 0.35),
+          0 0 3px rgba(77, 163, 255, 0.5);
+      }
+      .val .ms1 {
+        font-size: 28px;
+        opacity: 0.95;
+      }
+
+      /* Laps */
+      .laps {
+        margin-top: 16px;
+        border-top: 1px dashed var(--border);
+        padding-top: 14px;
+        height: 360px;
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 10px 8px;
+        border-bottom: 1px dashed var(--border);
+        text-align: left;
+        vertical-align: middle;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        z-index: 1;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .lap-input {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--chip);
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+      }
+      .icon-btn {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 16px;
+        padding: 6px;
+        border-radius: 8px;
+      }
+      .icon-btn:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      .kbd {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .test {
+        border: 1px solid white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="row">
+        <div class="brand">⏱️ Pro Stopwatch</div>
+        <div class="hint">
+          Tabs, laps CRUD, persistent. Keys: <span class="kbd">S</span>tart/Stop
+          · <span class="kbd">L</span>ap · <span class="kbd">R</span>eset ·
+          <span class="kbd">N</span>ew tab
+        </div>
+      </header>
+
+      <div
+        class="tabs"
+        id="tabs"
+        role="tablist"
+        aria-label="Stopwatch Tabs"
+      ></div>
+
+      <main>
+        <section class="card" id="panel" aria-live="polite" aria-atomic="true">
+          <div class="row">
+            <div class="grow">
+              <input
+                id="name"
+                class="name-edit"
+                placeholder="Untitled stopwatch"
+              />
+            </div>
+            <div class="controls">
+              <button id="startBtn" class="btn primary" title="Start (S)">
+                Start
+              </button>
+              <button id="stopBtn" class="btn warn" title="Stop (S)">
+                Stop
+              </button>
+              <button id="lapBtn" class="btn ok" title="Lap (L)">Lap</button>
+              <button id="resetBtn" class="btn danger" title="Reset (R)">
+                Reset
+              </button>
+              <button id="exportBtn" class="btn ghost" title="Export CSV">
+                Export
+              </button>
+              <!-- NEW: toggle button -->
+              <button
+                id="toggleBtn"
+                class="btn ghost"
+                title="Toggle absolute/segmented view"
+              >
+                Toggle View
+              </button>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 16px">
+            <div class="digits grow" id="digits"></div>
+          </div>
+
+          <div class="laps" id="lapsWrap" aria-live="polite">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Total</th>
+                  <th>Lap</th>
+                  <th>Name</th>
+                  <th>Note</th>
+                  <th>At</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="lapsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="foot">
+            <div class="hint">
+              Persistence: automatic (localStorage). Months≈30 days, Years≈365
+              days for duration math.
+            </div>
+            <div class="hint">
+              Edit lap name & note inline. Delete with the trash icon.
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const STORAGE_KEY = "proStopwatch.v2";
+        const VIEW_KEY = "proStopwatch.view.v1"; // persist toggle
+        const nowMs = () => Date.now();
+        const SEC = 1000,
+          MIN = 60 * SEC,
+          HR = 60 * MIN,
+          DAY = 24 * HR,
+          WK = 7 * DAY,
+          MON = 30 * DAY,
+          YR = 365 * DAY;
+
+        // State
+        const state = { list: [], activeId: null };
+        let isAbsolute = false;
+
+        // Utils
+        const uid = () =>
+          Math.random().toString(36).slice(2, 10) +
+          Math.random().toString(36).slice(2, 10);
+        const debounce = (fn, ms) => {
+          let t;
+          return (...a) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...a), ms);
+          };
+        };
+        const save = () => {
+          try {
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({ list: state.list, activeId: state.activeId })
+            );
+          } catch (e) {}
+        };
+        const saveDebounced = debounce(save, 120);
+        const pad2 = (n) => String(n).padStart(2, "0");
+        const setView = (v) => {
+          isAbsolute = !!v;
+          try {
+            localStorage.setItem(VIEW_KEY, isAbsolute ? "1" : "0");
+          } catch (e) {}
+        };
+        const getView = () => {
+          try {
+            return localStorage.getItem(VIEW_KEY) === "1";
+          } catch (e) {
+            return false;
+          }
+        };
+
+        function load() {
+          try {
+            const raw =
+              localStorage.getItem(STORAGE_KEY) ||
+              localStorage.getItem("proStopwatch.v1");
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && Array.isArray(parsed.list)) {
+                // migrate laps to add id/name if missing
+                parsed.list.forEach((sw) => {
+                  sw.laps = (sw.laps || []).map((l, i) => ({
+                    id: l.id || uid(),
+                    tMs: l.tMs,
+                    lapMs: l.lapMs,
+                    name: l.name || `Lap ${i + 1}`,
+                    note: l.note || "",
+                    atIso: l.atIso || new Date().toISOString(),
+                  }));
+                });
+                state.list = parsed.list;
+                state.activeId = parsed.activeId ?? state.list[0]?.id ?? null;
+              }
+            }
+            setView(getView());
+          } catch (e) {
+            console.warn("load fail", e);
+          }
+        }
+
+        // Model
+        function createStopwatch(name = "New Stopwatch") {
+          const id = uid();
+          const sw = {
+            id,
+            name,
+            isRunning: false,
+            startEpochMs: null,
+            resumePerfMs: null,
+            resumeEpochMs: null,
+            accumulatedMs: 0,
+            laps: [],
+            createdAt: new Date().toISOString(),
+          };
+          state.list.push(sw);
+          state.activeId = id;
+          saveDebounced();
+          return sw;
+        }
+        function removeStopwatch(id) {
+          const idx = state.list.findIndex((s) => s.id === id);
+          if (idx === -1) return;
+          state.list.splice(idx, 1);
+          if (state.activeId === id)
+            state.activeId =
+              state.list[idx]?.id || state.list[idx - 1]?.id || null;
+          saveDebounced();
+        }
+        const getActive = () =>
+          state.list.find((s) => s.id === state.activeId) || null;
+
+        function start(sw) {
+          if (sw.isRunning) return;
+          sw.isRunning = true;
+          sw.startEpochMs = sw.startEpochMs ?? nowMs();
+          sw.resumePerfMs = performance.now();
+          sw.resumeEpochMs = nowMs();
+          saveDebounced();
+        }
+        function stop(sw) {
+          if (!sw.isRunning) return;
+          const delta = nowMs() - (sw.resumeEpochMs ?? nowMs());
+          sw.accumulatedMs += delta;
+          sw.isRunning = false;
+          sw.resumePerfMs = null;
+          sw.resumeEpochMs = null;
+          saveDebounced();
+        }
+        function reset(sw, keepName = true) {
+          sw.isRunning = false;
+          sw.startEpochMs = null;
+          sw.resumePerfMs = null;
+          sw.resumeEpochMs = null;
+          sw.accumulatedMs = 0;
+          sw.laps = [];
+          if (!keepName) sw.name = "New Stopwatch";
+          saveDebounced();
+        }
+        const elapsedMs = (sw) =>
+          sw.isRunning && sw.resumeEpochMs != null
+            ? sw.accumulatedMs + (nowMs() - sw.resumeEpochMs)
+            : sw.accumulatedMs;
+
+        function addLap(sw) {
+          const t = elapsedMs(sw);
+          const atIso = new Date().toISOString();
+          const last = sw.laps[sw.laps.length - 1];
+          const lapMs = last ? t - last.tMs : t;
+          const name = `Lap ${sw.laps.length + 1}`;
+          sw.laps.push({ id: uid(), tMs: t, lapMs, name, note: "", atIso });
+          saveDebounced();
+        }
+        function updateLap(sw, lapId, fields) {
+          const lap = sw.laps.find((l) => l.id === lapId);
+          if (!lap) return;
+          Object.assign(lap, fields);
+          saveDebounced();
+        }
+        function deleteLap(sw, lapId) {
+          const idx = sw.laps.findIndex((l) => l.id === lapId);
+          if (idx === -1) return;
+          sw.laps.splice(idx, 1);
+          saveDebounced();
+        }
+
+        // Formatting (segmented & absolute)
+        function splitDuration(msTotal) {
+          let rest = Math.max(0, Math.floor(msTotal));
+          const years = Math.floor(rest / YR);
+          rest -= years * YR;
+          const months = Math.floor(rest / MON);
+          rest -= months * MON;
+          const weeks = Math.floor(rest / WK);
+          rest -= weeks * WK;
+          const days = Math.floor(rest / DAY);
+          rest -= days * DAY;
+          const hours = Math.floor(rest / HR);
+          rest -= hours * HR;
+          const mins = Math.floor(rest / MIN);
+          rest -= mins * MIN;
+          const secs = Math.floor(rest / SEC);
+          rest -= secs * SEC;
+          const msTenths = Math.floor((rest % 1000) / 100); // 0..9
+          return {
+            years,
+            months,
+            weeks,
+            days,
+            hours,
+            mins,
+            secs,
+            ms1: msTenths,
+          };
+        }
+        function totals(msTotal) {
+          const t = Math.max(0, Math.floor(msTotal));
+          return {
+            years: Math.floor(t / YR),
+            months: Math.floor(t / MON),
+            weeks: Math.floor(t / WK),
+            days: Math.floor(t / DAY),
+            hours: Math.floor(t / HR),
+            mins: Math.floor(t / MIN),
+            secs: Math.floor(t / SEC),
+            ms: t,
+          };
+        }
+        function fmt(ms) {
+          if (!isAbsolute) {
+            const t = splitDuration(ms);
+            return `${t.years}y ${t.months}mo ${t.weeks}w ${t.days}d ${pad2(
+              t.hours
+            )}:${pad2(t.mins)}:${pad2(t.secs)}.${t.ms1}`;
+          } else {
+            const t = totals(ms);
+            return `${t.years}y ${t.months}mo ${t.weeks}w ${t.days}d ${t.hours}h ${t.mins}m ${t.secs}s ${t.ms}ms`;
+          }
+        }
+        function mini(sw) {
+          const t = splitDuration(elapsedMs(sw));
+          if (t.years) return `${t.years}y ${t.months}mo`;
+          if (t.months) return `${t.months}mo ${t.weeks}w`;
+          if (t.weeks) return `${t.weeks}w ${t.days}d`;
+          if (t.days) return `${t.days}d ${pad2(t.hours)}h`;
+          return `${pad2(t.hours)}:${pad2(t.mins)}:${pad2(t.secs)}`;
+        }
+        const esc = (s) =>
+          s.replace(
+            /[&<>"']/g,
+            (m) =>
+              ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;",
+              }[m])
+          );
+
+        // DOM refs
+        const $tabs = document.getElementById("tabs");
+        const $name = document.getElementById("name");
+        const $digits = document.getElementById("digits");
+        const $lapsBody = document.getElementById("lapsBody");
+        const $startBtn = document.getElementById("startBtn");
+        const $stopBtn = document.getElementById("stopBtn");
+        const $lapBtn = document.getElementById("lapBtn");
+        const $resetBtn = document.getElementById("resetBtn");
+        const $exportBtn = document.getElementById("exportBtn");
+        const $toggleBtn = document.getElementById("toggleBtn");
+
+        // Render
+        function renderTabs() {
+          $tabs.innerHTML = "";
+          for (const sw of state.list) {
+            const el = document.createElement("button");
+            el.className = "tab" + (sw.id === state.activeId ? " active" : "");
+            el.setAttribute("role", "tab");
+            el.setAttribute(
+              "aria-selected",
+              sw.id === state.activeId ? "true" : "false"
+            );
+            el.title = sw.name || "Untitled";
+            el.innerHTML = `
+              <span class="title">${esc(sw.name || "Untitled")}</span>
+              <span class="mini">${mini(sw)}</span>
+              <button class="x" title="Close tab" aria-label="Close">×</button>`;
+            el.addEventListener("click", (e) => {
+              if (e.target && e.target.classList.contains("x")) {
+                e.stopPropagation();
+                if (
+                  sw.isRunning &&
+                  !confirm("This stopwatch is running. Close tab anyway?")
+                )
+                  return;
+                removeStopwatch(sw.id);
+                renderTabs();
+                renderPanel();
+                return;
+              }
+              state.activeId = sw.id;
+              saveDebounced();
+              renderTabs();
+              renderPanel();
+            });
+            $tabs.appendChild(el);
+          }
+          const add = document.createElement("button");
+          add.className = "add-tab";
+          add.textContent = "＋ New";
+          add.title = "New tab (N)";
+          add.addEventListener("click", () => {
+            createStopwatch("Stopwatch " + (state.list.length + 1));
+            renderTabs();
+            renderPanel();
+            $name.select();
+          });
+          $tabs.appendChild(add);
+        }
+
+        function renderPanel() {
+          const sw = getActive();
+          if (!sw) {
+            createStopwatch("Stopwatch 1");
+            renderTabs();
+            renderPanel();
+            return;
+          }
+          $name.value = sw.name || "";
+          $startBtn.disabled = sw.isRunning;
+          $stopBtn.disabled = !sw.isRunning;
+          $lapBtn.disabled = !sw.isRunning;
+          $toggleBtn.textContent = isAbsolute
+            ? "Segmented View"
+            : "Absolute View";
+          renderDigits(sw);
+          renderLaps(sw);
+        }
+
+        function renderDigits(sw) {
+          const ms = elapsedMs(sw);
+          const seg = splitDuration(ms);
+          const abs = totals(ms);
+          const src = isAbsolute ? abs : seg;
+
+          $digits.innerHTML = [
+            block(
+              "Years",
+              isAbsolute ? src.years : src.years,
+              isAbsolute ? 1 : 4
+            ),
+            block(
+              "Months",
+              isAbsolute ? src.months : src.months,
+              isAbsolute ? 1 : 2
+            ),
+            block(
+              "Weeks",
+              isAbsolute ? src.weeks : src.weeks,
+              isAbsolute ? 1 : 2
+            ),
+            block("Days", isAbsolute ? src.days : src.days, isAbsolute ? 1 : 3),
+            block(
+              "Hours",
+              isAbsolute ? src.hours : src.hours,
+              isAbsolute ? 1 : 2
+            ),
+            block(
+              "Minutes",
+              isAbsolute ? src.mins : src.mins,
+              isAbsolute ? 1 : 2
+            ),
+            block(
+              "Seconds",
+              isAbsolute ? src.secs : src.secs,
+              isAbsolute ? 1 : 2
+            ),
+            block(
+              "Milliseconds",
+              isAbsolute ? abs.ms : seg.ms1,
+              isAbsolute ? 1 : 1,
+              !isAbsolute /* ms1 style only in segmented */
+            ),
+          ].join("");
+
+          function block(label, value, pad = 2, ms1Style = false) {
+            const v =
+              typeof value === "number"
+                ? String(value).padStart(pad, "0")
+                : value;
+            return `<div class="digit">
+              <div class="unit">${label}</div>
+              <div class="val">${
+                ms1Style ? `<span class="ms1">${v}</span>` : v
+              }</div>
+            </div>`;
+          }
+        }
+
+        function renderLaps(sw) {
+          if (sw.laps.length === 0) {
+            $lapsBody.innerHTML = `<tr><td colspan="7" class="muted">No laps yet.</td></tr>`;
+            return;
+          }
+          const rows = sw.laps
+            .map((l, i) => {
+              const idx = sw.laps.length - i;
+              return `<tr data-lapid="${l.id}">
+                <td><span class="chip">#${idx}</span></td>
+                <td>${fmt(l.tMs)}</td>
+                <td>${fmt(l.lapMs)}</td>
+                <td style="min-width:140px"><input class="lap-input" name="name" value="${esc(
+                  l.name || ""
+                )}" placeholder="Lap name" /></td>
+                <td style="min-width:220px"><input class="lap-input" name="note" value="${esc(
+                  l.note || ""
+                )}" placeholder="Add a note" /></td>
+                <td class="muted">${new Date(l.atIso).toLocaleString()}</td>
+                <td style="width:60px; text-align:right">
+                  <button class="icon-btn" title="Delete lap" data-action="del" aria-label="Delete lap">🗑️</button>
+                </td>
+              </tr>`;
+            })
+            .reverse()
+            .join("");
+          $lapsBody.innerHTML = rows;
+        }
+
+        // Events
+        $name.addEventListener("input", () => {
+          const sw = getActive();
+          if (!sw) return;
+          sw.name = $name.value.slice(0, 120);
+          saveDebounced();
+          renderTabs();
+        });
+        $startBtn.addEventListener("click", () => {
+          const sw = getActive();
+          if (!sw) return;
+          start(sw);
+          renderPanel();
+        });
+        $stopBtn.addEventListener("click", () => {
+          const sw = getActive();
+          if (!sw) return;
+          stop(sw);
+          renderPanel();
+        });
+        $lapBtn.addEventListener("click", () => {
+          const sw = getActive();
+          if (!sw) return;
+          addLap(sw);
+          renderPanel();
+        });
+        $resetBtn.addEventListener("click", () => {
+          const sw = getActive();
+          if (!sw) return;
+          if (!confirm("Reset this stopwatch? All laps will be cleared."))
+            return;
+          reset(sw);
+          renderPanel();
+        });
+        $exportBtn.addEventListener("click", () => {
+          const sw = getActive();
+          if (!sw) return;
+          let out = `Index,Total,Total(ms),Lap,Lap(ms),Name,Note,At\n`;
+          sw.laps.forEach((l, i) => {
+            out +=
+              [
+                i + 1,
+                `"${fmt(l.tMs)}"`,
+                l.tMs,
+                `"${fmt(l.lapMs)}"`,
+                l.lapMs,
+                `"${(l.name || "").replace(/"/g, '""')}"`,
+                `"${(l.note || "").replace(/"/g, '""')}"`,
+                `"${l.atIso}"`,
+              ].join(",") + "\n";
+          });
+          const blob = new Blob([out], { type: "text/csv;charset=utf-8" });
+          const a = document.createElement("a");
+          const safe = (sw.name || "stopwatch")
+            .replace(/[^\w\-]+/g, "_")
+            .slice(0, 64);
+          a.href = URL.createObjectURL(blob);
+          a.download = `${safe}_laps.csv`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        });
+
+        // NEW: toggle view
+        $toggleBtn.addEventListener("click", () => {
+          setView(!isAbsolute);
+          renderPanel();
+        });
+
+        // Laps inline edit + delete
+        $lapsBody.addEventListener("input", (e) => {
+          const target = e.target;
+          if (!(target instanceof HTMLInputElement)) return;
+          const row = target.closest("tr");
+          if (!row) return;
+          const lapId = row.getAttribute("data-lapid");
+          const sw = getActive();
+          if (!sw) return;
+          const key = target.name === "name" ? "name" : "note";
+          updateLap(sw, lapId, { [key]: target.value.slice(0, 2000) });
+        });
+        $lapsBody.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-action='del']");
+          if (!btn) return;
+          const row = btn.closest("tr");
+          if (!row) return;
+          const lapId = row.getAttribute("data-lapid");
+          const sw = getActive();
+          if (!sw) return;
+          deleteLap(sw, lapId);
+          renderLaps(sw);
+        });
+
+        // Keyboard shortcuts
+        window.addEventListener("keydown", (e) => {
+          if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName))
+            return;
+          const k = e.key.toLowerCase();
+          const sw = getActive();
+          if (k === "s" && sw) {
+            sw.isRunning ? stop(sw) : start(sw);
+            renderPanel();
+          } else if (k === "l" && sw && sw.isRunning) {
+            addLap(sw);
+            renderPanel();
+          } else if (k === "r" && sw) {
+            if (confirm("Reset this stopwatch?")) {
+              reset(sw);
+              renderPanel();
+            }
+          } else if (k === "n") {
+            createStopwatch("Stopwatch " + (state.list.length + 1));
+            renderTabs();
+            renderPanel();
+            $name.select();
+          }
+        });
+
+        // Animation loop (cheap; only digits)
+        function tick() {
+          const sw = getActive();
+          if (sw) renderDigits(sw);
+          requestAnimationFrame(tick);
+        }
+
+        // Boot
+        load();
+        if (state.list.length === 0) {
+          createStopwatch("Stopwatch 1");
+        }
+        renderTabs();
+        renderPanel();
+        requestAnimationFrame(tick);
+      })();
+    </script>
+  </body>
+</html>
